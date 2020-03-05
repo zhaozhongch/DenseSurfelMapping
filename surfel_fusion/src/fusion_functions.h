@@ -91,6 +91,7 @@ public:
         int reference_frame_index,
         cv::Mat &input_image,
         cv::Mat &input_depth,
+        cv::Mat &input_rgb_image,
         Eigen::Matrix4f &pose,
         std::vector<SurfelElement> &local_surfels,
         std::vector<SurfelElement> &new_surfels);

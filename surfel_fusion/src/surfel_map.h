@@ -78,7 +78,7 @@ public:
     void synchronize_msgs();
     // void initialize_map(cv::Mat image, cv::Mat depth, geometry_msgs::Pose pose, ros::Time stamp);
     // void fuse_map(cv::Mat image, cv::Mat depth, geometry_msgs::Pose pose, ros::Time stamp);
-    void fuse_map(cv::Mat image, cv::Mat depth, Eigen::Matrix4f pose_input, int reference_index);
+    void fuse_map(cv::Mat image, cv::Mat depth, cv::Mat rgb_image, Eigen::Matrix4f pose_input, int reference_index);
     void move_add_surfels(int reference_index);
     void move_all_surfels();
     bool synchronize_buffer();
@@ -103,6 +103,7 @@ public:
     // receive buffer
     std::deque<std::pair<ros::Time, cv::Mat>> image_buffer;
     std::deque<std::pair<ros::Time, cv::Mat>> depth_buffer;
+    std::deque<std::pair<ros::Time, cv::Mat>> rgb_image_buffer;
     std::deque<std::pair<ros::Time, int>> pose_reference_buffer;
 
     // geometry_msgs::PoseStamped await_pose;

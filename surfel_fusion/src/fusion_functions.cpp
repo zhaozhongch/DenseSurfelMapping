@@ -31,6 +31,7 @@ void FusionFunctions::fuse_initialize_map(
     int reference_frame_index,
     cv::Mat &input_image,
     cv::Mat &input_depth,
+    cv::Mat &input_rgb_image,
     Eigen::Matrix4f &pose,
     std::vector<SurfelElement> &local_surfels,
     std::vector<SurfelElement> &new_surfels)
@@ -43,8 +44,8 @@ void FusionFunctions::fuse_initialize_map(
     // depth = input_depth.clone();
 
     #ifdef USE_RGB
-    rgb_image = input_image;
-    cv::cvtColor(input_image, image, CV_BGR2GRAY);
+    rgb_image = input_rgb_image;
+    image = input_image;
     #else 
     image = input_image;
     #endif
@@ -588,6 +589,7 @@ void FusionFunctions::update_seeds_kernel(
         #endif
         float sum_intensity = 0.0;
         float sum_intensity_num = 0.0;
+        float sum_rgb_num = 0.0;
         float sum_depth = 0.0;
         float sum_depth_num = 0.0;
         std::vector<float> depth_vector;
@@ -600,11 +602,6 @@ void FusionFunctions::update_seeds_kernel(
                 sum_x += check_i;
                 sum_y += check_j;
                 sum_intensity_num += 1.0;
-                #ifdef USE_RGB
-                sum_b += rgb_image.ptr<uchar>(check_j)[check_i*3 + 0];
-                sum_g += rgb_image.ptr<uchar>(check_j)[check_i*3 + 1];
-                sum_r += rgb_image.ptr<uchar>(check_j)[check_i*3 + 2];
-                #endif
                 sum_intensity += image.at<uchar>(check_j, check_i);
                 float check_depth = depth.at<float>(check_j, check_i);
                 if (check_depth > 0.1)
@@ -613,14 +610,24 @@ void FusionFunctions::update_seeds_kernel(
                     sum_depth += check_depth;
                     sum_depth_num += 1.0;
                 }
+                if (check_depth > 0.01){
+                    #ifdef USE_RGB
+                    sum_b += rgb_image.ptr<uchar>(check_j)[check_i*3 + 0];
+                    sum_g += rgb_image.ptr<uchar>(check_j)[check_i*3 + 1];
+                    sum_r += rgb_image.ptr<uchar>(check_j)[check_i*3 + 2];
+                    sum_rgb_num += 1.0;
+                    #endif
+                }
             }
         }
         if (sum_intensity_num == 0)
             return;
         #ifdef USE_RGB
-        sum_b /= sum_intensity_num;
-        sum_g /= sum_intensity_num;
-        sum_r /= sum_intensity_num;
+        if(sum_rgb_num == 0)
+            ROS_ERROR("error !! no depth is bigger than 0.01 in the seeds");
+        sum_b /= sum_rgb_num;
+        sum_g /= sum_rgb_num;
+        sum_r /= sum_rgb_num;
         float pre_b = superpixel_seeds[seed_i].mean_b;
         float pre_r = superpixel_seeds[seed_i].mean_r;
         float pre_g = superpixel_seeds[seed_i].mean_g;
@@ -722,16 +729,22 @@ void FusionFunctions::initialize_seeds_kernel(
         Superpixel_seed this_sp;
         this_sp.x = image_x;
         this_sp.y = image_y;
-        #ifdef USE_RGB
-        this_sp.mean_b = rgb_image.ptr<uchar>(image_y)[image_x*3 + 0];
-        this_sp.mean_g = rgb_image.ptr<uchar>(image_y)[image_x*3 + 1];
-        this_sp.mean_r = rgb_image.ptr<uchar>(image_y)[image_x*3 + 2];
-        #else
         this_sp.mean_intensity = image.at<uchar>(image_y, image_x);
-        #endif
         this_sp.fused = false;
         this_sp.stable = false;
         this_sp.mean_depth = depth.at<float>(image_y, image_x);
+        #ifdef USE_RGB
+        if(this_sp.mean_depth > 0.01){
+            this_sp.mean_b = rgb_image.ptr<uchar>(image_y)[image_x*3 + 0];
+            this_sp.mean_g = rgb_image.ptr<uchar>(image_y)[image_x*3 + 1];
+            this_sp.mean_r = rgb_image.ptr<uchar>(image_y)[image_x*3 + 2];
+        }
+        else{
+            this_sp.mean_b = 0;
+            this_sp.mean_g = 0;
+            this_sp.mean_r = 0;
+        }
+        #endif
         
         if(this_sp.mean_depth < 0.01)
         {

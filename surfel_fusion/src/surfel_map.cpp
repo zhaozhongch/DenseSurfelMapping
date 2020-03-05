@@ -95,27 +95,23 @@ void SurfelMap::save_map(const std_msgs::StringConstPtr &save_map_input)
 void SurfelMap::image_input(const sensor_msgs::ImageConstPtr &image_input)
 {
     //printf("receive image!\n");
-    #ifdef USE_RGB
-    cv_bridge::CvImagePtr image_ptr = cv_bridge::toCvCopy(image_input, sensor_msgs::image_encodings::TYPE_8UC3);
-    #else
     cv_bridge::CvImagePtr image_ptr = cv_bridge::toCvCopy(image_input, sensor_msgs::image_encodings::TYPE_8UC1);
-    #endif
     cv::Mat image = image_ptr->image;
     ros::Time stamp = image_ptr->header.stamp;
     image_buffer.push_back(std::make_pair(stamp, image));
     synchronize_msgs();
 }
 
-// void SurfelMap::rgb_image_input(const sensor_msgs::ImageConstPtr &rgb_image_input)
-// {
-//     //printf("receive image!\n");
-//     cv_bridge::CvImagePtr image_ptr = cv_bridge::toCvCopy(rgb_image_input, sensor_msgs::image_encodings::TYPE_8UC3);
-//     cv::Mat image = image_ptr->image;
-//     ros::Time stamp = image_ptr->header.stamp;
-//     rgb_image_buffer.push_back(std::make_pair(stamp, image));
-//     ROS_INFO("get rgb image and put it into buff...........");
-//     synchronize_msgs();
-// }
+void SurfelMap::rgb_image_input(const sensor_msgs::ImageConstPtr &rgb_image_input)
+{
+    //printf("receive image!\n");
+    cv_bridge::CvImagePtr image_ptr = cv_bridge::toCvCopy(rgb_image_input, sensor_msgs::image_encodings::TYPE_8UC3);
+    cv::Mat image = image_ptr->image;
+    ros::Time stamp = image_ptr->header.stamp;
+    rgb_image_buffer.push_back(std::make_pair(stamp, image));
+    ROS_INFO("get rgb image and put it into buff...........");
+    synchronize_msgs();
+}
 
 int cnt = 0;
 void SurfelMap::depth_input(const sensor_msgs::ImageConstPtr &depth_input)
@@ -152,6 +148,7 @@ void SurfelMap::synchronize_msgs()
         double pose_reference_time = fuse_stamp.toSec();
         int image_num = -1;
         int depth_num = -1;
+        int rgb_image_num = -1;
         for(int image_i = 0; image_i < image_buffer.size(); image_i++)
         {
             double image_time = image_buffer[image_i].first.toSec();
@@ -160,6 +157,16 @@ void SurfelMap::synchronize_msgs()
                 /*if(fabs(image_time - pose_reference_time) > 0.00001)
                     ROS_ERROR("diff time:= %f", fabs(image_time - pose_reference_time));*/
                 image_num = image_i;
+            }
+        }
+        for(int rgb_image_i = 0; rgb_image_i < rgb_image_buffer.size(); rgb_image_i++)
+        {
+            double rgb_image_time = rgb_image_buffer[rgb_image_i].first.toSec();
+            if(fabs(rgb_image_time - pose_reference_time) < 0.01)
+            {   
+                /*if(fabs(image_time - pose_reference_time) > 0.00001)
+                    ROS_ERROR("diff time:= %f", fabs(image_time - pose_reference_time));*/
+                rgb_image_num = rgb_image_i;
             }
         }
         for(int depth_i = 0; depth_i < depth_buffer.size(); depth_i++)
@@ -173,7 +180,7 @@ void SurfelMap::synchronize_msgs()
             }
         }
 
-        if( image_num < 0 || depth_num < 0)
+        if( image_num < 0 || depth_num < 0 || rgb_image_num < 0)
             continue;
 
         int relative_index = pose_reference_buffer[scan_pose].second;
@@ -187,12 +194,13 @@ void SurfelMap::synchronize_msgs()
         // /rintf("fuse map begins!\n");
 
         //std::cout<<"image_num:"<<image_num<<"\nima"
-        cv::Mat image, depth;
+        cv::Mat image, depth, rgb_image;
         image = image_buffer[image_num].second;
         depth = depth_buffer[depth_num].second;
-        /*image = image_buffer.front().second;
-        depth = depth_buffer.front().second;*/
-        fuse_map(image, depth, fuse_pose_eigen.cast<float>(), relative_index);
+        rgb_image = rgb_image_buffer[rgb_image_num].second;
+        
+        ROS_INFO("timestamp of three image, %f, %f, %f", image_buffer[image_num].first.toSec(), depth_buffer[depth_num].first.toSec(), rgb_image_buffer[rgb_image_num].first.toSec());
+        fuse_map(image, depth, rgb_image, fuse_pose_eigen.cast<float>(), relative_index);
         //printf("fuse map done!\n");
 
         move_all_surfels();
@@ -203,6 +211,8 @@ void SurfelMap::synchronize_msgs()
             image_buffer.pop_front();
         for(int delete_depth = 0; delete_depth <= depth_num; delete_depth++)
             depth_buffer.pop_front();
+        for(int delete_rgb_image = 0; delete_rgb_image<= rgb_image_num; delete_rgb_image++)
+            rgb_image_buffer.pop_front();
         
 
         // {
@@ -695,7 +705,7 @@ void SurfelMap::publish_pose_graph(ros::Time pub_stamp, int reference_index)
 }
 
 
-void SurfelMap::fuse_map(cv::Mat image, cv::Mat depth, Eigen::Matrix4f pose_input, int reference_index)
+void SurfelMap::fuse_map(cv::Mat image, cv::Mat depth, cv::Mat rgb_image, Eigen::Matrix4f pose_input, int reference_index)
 {
     printf("fuse surfels with reference index %d and %d surfels!\n", reference_index, local_surfels.size());    
     Timer fuse_timer("fusing");
@@ -705,6 +715,7 @@ void SurfelMap::fuse_map(cv::Mat image, cv::Mat depth, Eigen::Matrix4f pose_inpu
         reference_index,
         image,
         depth,
+        rgb_image,
         pose_input,
         local_surfels,
         new_surfels
