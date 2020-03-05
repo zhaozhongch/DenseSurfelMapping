@@ -31,6 +31,7 @@ private:
 
     cv::Mat image;
     cv::Mat depth;
+    cv::Mat rgb_image;
 
     std::vector<double> space_map;
     std::vector<float> norm_map;

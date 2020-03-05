@@ -7,7 +7,11 @@
 SurfelMap::SurfelMap(ros::NodeHandle &_nh):
 nh(_nh),
 // fuse_param_gpuptr(NULL),
+#ifdef USE_RGB
+inactive_pointcloud(new PointCloudRGB)
+#else
 inactive_pointcloud(new PointCloud)
+#endif
 {
     // get the parameters
     bool get_all = true;
@@ -54,7 +58,11 @@ inactive_pointcloud(new PointCloud)
     fusion_functions.initialize(cam_width, cam_height, cam_fx, cam_fy, cam_cx, cam_cy, far_dist, near_dist);
 
     // ros publisher
+    #ifdef USE_RGB
+    pointcloud_publish = nh.advertise<PointCloudRGB>("pointcloud", 10);
+    #else
     pointcloud_publish = nh.advertise<PointCloud>("pointcloud", 10);
+    #endif
     cam_pose_publish = nh.advertise<geometry_msgs::PoseStamped>("cam_pose", 10);
 
     raw_pointcloud_publish = nh.advertise<PointCloud>("raw_pointcloud", 10);
@@ -86,24 +94,39 @@ void SurfelMap::save_map(const std_msgs::StringConstPtr &save_map_input)
 
 void SurfelMap::image_input(const sensor_msgs::ImageConstPtr &image_input)
 {
-    // printf("receive image!\n");
+    //printf("receive image!\n");
+    #ifdef USE_RGB
+    cv_bridge::CvImagePtr image_ptr = cv_bridge::toCvCopy(image_input, sensor_msgs::image_encodings::TYPE_8UC3);
+    #else
     cv_bridge::CvImagePtr image_ptr = cv_bridge::toCvCopy(image_input, sensor_msgs::image_encodings::TYPE_8UC1);
+    #endif
     cv::Mat image = image_ptr->image;
     ros::Time stamp = image_ptr->header.stamp;
     image_buffer.push_back(std::make_pair(stamp, image));
     synchronize_msgs();
 }
 
+// void SurfelMap::rgb_image_input(const sensor_msgs::ImageConstPtr &rgb_image_input)
+// {
+//     //printf("receive image!\n");
+//     cv_bridge::CvImagePtr image_ptr = cv_bridge::toCvCopy(rgb_image_input, sensor_msgs::image_encodings::TYPE_8UC3);
+//     cv::Mat image = image_ptr->image;
+//     ros::Time stamp = image_ptr->header.stamp;
+//     rgb_image_buffer.push_back(std::make_pair(stamp, image));
+//     ROS_INFO("get rgb image and put it into buff...........");
+//     synchronize_msgs();
+// }
+
 int cnt = 0;
 void SurfelMap::depth_input(const sensor_msgs::ImageConstPtr &depth_input)
 {
-    // printf("receive depth!\n");
+    //printf("receive depth!\n");
     /*cnt++;
     if(cnt % 3 == 0)*/
     {
         cv_bridge::CvImagePtr image_ptr;
         image_ptr = cv_bridge::toCvCopy(depth_input, depth_input->encoding);
-        constexpr double kDepthScalingFactor = 0.001;
+        constexpr double kDepthScalingFactor = 0.001;//0.0002 for eth, 0.001 for realsense
         if(depth_input->encoding == sensor_msgs::image_encodings::TYPE_16UC1)
             (image_ptr->image).convertTo(image_ptr->image, CV_32FC1, kDepthScalingFactor);
         // image_ptr = cv_bridge::toCvCopy(depth_input, sensor_msgs::image_encodings::TYPE_32FC1);
@@ -180,6 +203,7 @@ void SurfelMap::synchronize_msgs()
             image_buffer.pop_front();
         for(int delete_depth = 0; delete_depth <= depth_num; delete_depth++)
             depth_buffer.pop_front();
+        
 
         // {
         //     // debug print the pose value
@@ -221,9 +245,9 @@ void SurfelMap::synchronize_msgs()
         // break;
     }
 
-    /*ROS_WARN("pose_buffer size:  = %d", pose_reference_buffer.size());
-    ROS_WARN("image_buffer size: = %d", image_buffer.size());
-    ROS_WARN("depth_buffer size: = %d", depth_buffer.size());*/
+    // ROS_WARN("pose_buffer size:  = %d", pose_reference_buffer.size());
+    // ROS_WARN("image_buffer size: = %d", image_buffer.size());
+    // ROS_WARN("depth_buffer size: = %d", depth_buffer.size());
 }
 
 void SurfelMap::extrinsic_input(const nav_msgs::OdometryConstPtr &ex_input)
@@ -440,7 +464,11 @@ void SurfelMap::warp_inactive_surfels_cpu_kernel(int thread_i, int thread_num)
             continue;
         }
 
+        #ifdef USE_RGB
+        PointCloudRGB::Ptr warped_new_pointcloud(new PointCloudRGB);
+        #else
         PointCloud::Ptr warped_new_pointcloud(new PointCloud);
+        #endif
 
         Eigen::Matrix4d pre_pose, after_pose;
         Eigen::Matrix4f warp_matrix;
@@ -470,11 +498,26 @@ void SurfelMap::warp_inactive_surfels_cpu_kernel(int thread_i, int thread_num)
             poses_database[i].attached_surfels[surfel_i].ny = point_norms(1,surfel_i);
             poses_database[i].attached_surfels[surfel_i].nz = point_norms(2,surfel_i);
 
+            #ifdef USE_RGB
+            PointTypeRGB new_point;
+            new_point.x = poses_database[i].attached_surfels[surfel_i].px;
+            new_point.y = poses_database[i].attached_surfels[surfel_i].py;
+            new_point.z = poses_database[i].attached_surfels[surfel_i].pz;
+            new_point.r = (uint8_t)poses_database[i].attached_surfels[surfel_i].r;
+            new_point.g = (uint8_t)poses_database[i].attached_surfels[surfel_i].g;
+            new_point.b = (uint8_t)poses_database[i].attached_surfels[surfel_i].b;
+            // uint8_t red = poses_database[i].attached_surfels[surfel_i].r;
+            // uint8_t green = poses_database[i].attached_surfels[surfel_i].g;
+            // uint8_t blue = poses_database[i].attached_surfels[surfel_i].b;
+            // uint32_t rgb = (uint32_t)red << 16 | (uint32_t)green << 8 | (uint32_t)blue;
+            // new_point.rgb = *reinterpret_cast<float*>(&rgb);
+            #else
             PointType new_point;
             new_point.x = poses_database[i].attached_surfels[surfel_i].px;
             new_point.y = poses_database[i].attached_surfels[surfel_i].py;
             new_point.z = poses_database[i].attached_surfels[surfel_i].pz;
             new_point.intensity = poses_database[i].attached_surfels[surfel_i].color;
+            #endif
             warped_new_pointcloud->push_back(new_point);
         }
         poses_database[i].cam_pose = poses_database[i].loop_pose;
@@ -654,7 +697,7 @@ void SurfelMap::publish_pose_graph(ros::Time pub_stamp, int reference_index)
 
 void SurfelMap::fuse_map(cv::Mat image, cv::Mat depth, Eigen::Matrix4f pose_input, int reference_index)
 {
-    //printf("fuse surfels with reference index %d and %d surfels!\n", reference_index, local_surfels.size());    
+    printf("fuse surfels with reference index %d and %d surfels!\n", reference_index, local_surfels.size());    
     Timer fuse_timer("fusing");
 
     vector<SurfelElement> new_surfels;
@@ -678,6 +721,7 @@ void SurfelMap::fuse_map(cv::Mat image, cv::Mat depth, Eigen::Matrix4f pose_inpu
     fuse_timer.middle("delete index");
 
     // add new initialized surfels
+    //std::cout<<"new surfel size "<<new_surfels.size()<<std::endl;
     int add_surfel_num = 0;
     for(int i = 0; i < new_surfels.size(); i++)
     {
@@ -720,7 +764,11 @@ void SurfelMap::publish_raw_pointcloud(cv::Mat &depth, cv::Mat &reference, geome
     translation_T(1) = pose.position.y;
     translation_T(2) = pose.position.z;
 
+    #ifdef USE_RGB
+    PointCloudRGB::Ptr pointcloud(new PointCloudRGB);
+    #else
     PointCloud::Ptr pointcloud(new PointCloud);
+    #endif
     for(int i = 0; i < cam_width; i++)
     for(int j = 0; j < cam_height; j++)
     {
@@ -732,11 +780,21 @@ void SurfelMap::publish_raw_pointcloud(cv::Mat &depth, cv::Mat &reference, geome
         Eigen::Vector3f world_point;
         world_point = rotation_R * cam_point + translation_T;
 
+        #ifdef USE_RGB
+        PointTypeRGB p;
+        p.x = world_point(0);
+        p.y = world_point(1);
+        p.z = world_point(2);
+        p.b = (uint8_t)reference.ptr<uchar>(j)[i*3+0];
+        p.g = (uint8_t)reference.ptr<uchar>(j)[i*3+1];
+        p.r = (uint8_t)reference.ptr<uchar>(j)[i*3+2];
+        #else
         PointType p;
         p.x = world_point(0);
         p.y = world_point(1);
         p.z = world_point(2);
         p.intensity = reference.at<uchar>(j,i);
+        #endif
         pointcloud->push_back(p);
     }
     pointcloud->header.frame_id = "world";
@@ -747,16 +805,30 @@ void SurfelMap::publish_raw_pointcloud(cv::Mat &depth, cv::Mat &reference, geome
 void SurfelMap::save_cloud(string save_path_name)
 {
     printf("saving pointcloud ...\n");
+    #ifdef USE_RGB
+    PointCloudRGB::Ptr pointcloud(new PointCloudRGB);
+    #else
     PointCloud::Ptr pointcloud(new PointCloud);
+    #endif
     for(int surfel_it = 0; surfel_it < local_surfels.size(); surfel_it++)
     {
         if(local_surfels[surfel_it].update_times < 5)
             continue;
+        #ifdef USE_RGB
+        PointTypeRGB p;
+        p.x = local_surfels[surfel_it].px;
+        p.y = local_surfels[surfel_it].py;
+        p.z = local_surfels[surfel_it].pz;
+        p.r = (uint8_t)local_surfels[surfel_it].r;
+        p.g = (uint8_t)local_surfels[surfel_it].g;
+        p.b = (uint8_t)local_surfels[surfel_it].b;
+        #else
         PointType p;
         p.x = local_surfels[surfel_it].px;
         p.y = local_surfels[surfel_it].py;
         p.z = local_surfels[surfel_it].pz;
         p.intensity = local_surfels[surfel_it].color;
+        #endif
         pointcloud->push_back(p);
     }
     
@@ -879,17 +951,31 @@ void SurfelMap::publish_neighbor_pointcloud(ros::Time pub_stamp, int reference_i
     std::chrono::duration<double> total_time;
     start_time = std::chrono::system_clock::now();
 
+    #ifdef USE_RGB
+    PointCloudRGB::Ptr pointcloud(new PointCloudRGB);
+    #else
     PointCloud::Ptr pointcloud(new PointCloud);
+    #endif
     pointcloud->reserve(local_surfels.size() + inactive_pointcloud->size());
     for(int surfel_it = 0; surfel_it < local_surfels.size(); surfel_it++)
     {
         if(local_surfels[surfel_it].update_times == 0)
             continue;
+        #ifdef USE_RGB
+        PointTypeRGB p;
+        p.x = local_surfels[surfel_it].px;
+        p.y = local_surfels[surfel_it].py;
+        p.z = local_surfels[surfel_it].pz;
+        p.r = (uint8_t)local_surfels[surfel_it].r;
+        p.g = (uint8_t)local_surfels[surfel_it].g;
+        p.b = (uint8_t)local_surfels[surfel_it].b;
+        #else
         PointType p;
         p.x = local_surfels[surfel_it].px;
         p.y = local_surfels[surfel_it].py;
         p.z = local_surfels[surfel_it].pz;
         p.intensity = local_surfels[surfel_it].color;
+        #endif
         pointcloud->push_back(p);
     }
 
@@ -968,7 +1054,7 @@ void SurfelMap::publish_neighbor_pointcloud(ros::Time pub_stamp, int reference_i
     pointcloud->header.frame_id = "world";
     pcl_conversions::toPCL(pub_stamp, pointcloud->header.stamp);
     pointcloud_publish.publish(pointcloud);
-//    printf("publish point cloud with %d points, in active %d points.\n", pointcloud->size(), inactive_pointcloud->size());
+    //printf("publish point cloud with %d points, in active %d points.\n", pointcloud->size(), inactive_pointcloud->size());
 
     end_time = std::chrono::system_clock::now();
     total_time = end_time - start_time;
@@ -982,17 +1068,35 @@ void SurfelMap::publish_all_pointcloud(ros::Time pub_stamp)
     std::chrono::duration<double> total_time;
     start_time = std::chrono::system_clock::now();
 
+    #ifdef USE_RGB
+    PointCloudRGB::Ptr pointcloud(new PointCloudRGB);
+    #else
     PointCloud::Ptr pointcloud(new PointCloud);
+    #endif
     pointcloud->reserve(local_surfels.size() + inactive_pointcloud->size());
     for(int surfel_it = 0; surfel_it < local_surfels.size(); surfel_it++)
     {
-        if(local_surfels[surfel_it].update_times < 5)
+        if(local_surfels[surfel_it].update_times < 5){
             continue;
+        }
+        #ifdef USE_RGB
+        PointTypeRGB p;
+        p.x = local_surfels[surfel_it].px;
+        p.y = local_surfels[surfel_it].py;
+        p.z = local_surfels[surfel_it].pz;
+        p.r = (uint8_t)local_surfels[surfel_it].r;
+        p.g = (uint8_t)local_surfels[surfel_it].g;
+        p.b = (uint8_t)local_surfels[surfel_it].b;
+        //if(surfel_it / 10 == 0){
+            //std::cout<<"r,g,b.... "<<local_surfels[surfel_it].g<<", "<<local_surfels[surfel_it].r<<", "<<local_surfels[surfel_it].b<<std::endl;
+        //}        
+        #else
         PointType p;
         p.x = local_surfels[surfel_it].px;
         p.y = local_surfels[surfel_it].py;
         p.z = local_surfels[surfel_it].pz;
         p.intensity = local_surfels[surfel_it].color;
+        #endif
         pointcloud->push_back(p);
     }
 
@@ -1005,8 +1109,11 @@ void SurfelMap::publish_all_pointcloud(ros::Time pub_stamp)
 
 /*    pointcloud->header.frame_id = "world";
     pcl_conversions::toPCL(pub_stamp, pointcloud->header.stamp);*/
-
+    #ifdef USE_RGB
+    PointCloudRGB::Ptr pointcloud_noceil(new PointCloudRGB);
+    #else
     PointCloud::Ptr pointcloud_noceil(new PointCloud);
+    #endif
     for(int i = 0; i < pointcloud->points.size(); i++)
     {   
         /*if( pointcloud->points[i].z > 2.2 )
@@ -1017,7 +1124,7 @@ void SurfelMap::publish_all_pointcloud(ros::Time pub_stamp)
     pointcloud_noceil->header.frame_id = "world";
     pcl_conversions::toPCL(pub_stamp, pointcloud_noceil->header.stamp);
     pointcloud_publish.publish(pointcloud_noceil);
-
+    //printf("publish point cloud with %d points\n", pointcloud->size());
     //pointcloud_publish.publish(pointcloud);
     //printf("publish point cloud with %d points, inactive %d points.\n", pointcloud->size(), inactive_pointcloud->size());
 
@@ -1050,11 +1157,28 @@ void SurfelMap::move_all_surfels()
                 {
                     poses_database[inactive_index].attached_surfels.push_back(local_surfels[i]);
 
+                    #ifdef USE_RGB
+                    PointTypeRGB p;
+                    p.x = local_surfels[i].px;
+                    p.y = local_surfels[i].py;
+                    p.z = local_surfels[i].pz;
+                    p.r = (uint8_t)local_surfels[i].r;
+                    p.g = (uint8_t)local_surfels[i].g;
+                    p.b = (uint8_t)local_surfels[i].b;
+
+                    //The following way also works
+                    // uint8_t red = (uint8_t)local_surfels[i].r;
+                    // uint8_t green = (uint8_t)local_surfels[i].g;
+                    // uint8_t blue = (uint8_t)local_surfels[i].b;
+                    // uint32_t rgb = (uint32_t)red << 16 | (uint32_t)green << 8 | (uint32_t)blue;
+                    // p.rgb = *reinterpret_cast<float*>(&rgb);
+                    #else
                     PointType p;
                     p.x = local_surfels[i].px;
                     p.y = local_surfels[i].py;
                     p.z = local_surfels[i].pz;
                     p.intensity = local_surfels[i].color;
+                    #endif
                     inactive_pointcloud->push_back(p);
 
                     added_surfel_num += 1;
@@ -1102,12 +1226,22 @@ void SurfelMap::move_add_surfels(int reference_index)
                 if(local_surfels[i].update_times > 0 && local_surfels[i].last_update == inactive_index)
                 {
                     poses_database[inactive_index].attached_surfels.push_back(local_surfels[i]);
-
+                    
+                    #ifdef USE_RGB
+                    PointTypeRGB p;
+                    p.x = local_surfels[i].px;
+                    p.y = local_surfels[i].py;
+                    p.z = local_surfels[i].pz;
+                    p.r = (uint8_t)local_surfels[i].r;
+                    p.g = (uint8_t)local_surfels[i].g;
+                    p.b = (uint8_t)local_surfels[i].b;
+                    #else
                     PointType p;
                     p.x = local_surfels[i].px;
                     p.y = local_surfels[i].py;
                     p.z = local_surfels[i].pz;
                     p.intensity = local_surfels[i].color;
+                    #endif
                     inactive_pointcloud->push_back(p);
 
                     added_surfel_num += 1;
@@ -1171,8 +1305,13 @@ void SurfelMap::move_add_surfels(int reference_index)
             int remove_end_index = remove_info[remove_i - 1].second;
             //printf("remove from pose %d -> %d, has %d points\n", remove_begin_index, remove_end_index, remove_points_size);
 
+            #ifdef USE_RGB
+            PointCloudRGB::iterator begin_ptr;
+            PointCloudRGB::iterator end_ptr;
+            #else
             PointCloud::iterator begin_ptr;
             PointCloud::iterator end_ptr;
+            #endif
             begin_ptr = inactive_pointcloud->begin() + poses_database[remove_begin_index].points_begin_index;
             end_ptr = begin_ptr + remove_points_size;
             inactive_pointcloud->erase(begin_ptr, end_ptr);

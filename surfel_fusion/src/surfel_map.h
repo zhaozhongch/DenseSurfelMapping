@@ -33,6 +33,8 @@
 
 typedef pcl::PointXYZI PointType;
 typedef pcl::PointCloud<PointType> PointCloud;
+typedef pcl::PointXYZRGB PointTypeRGB;
+typedef pcl::PointCloud<PointTypeRGB> PointCloudRGB;
 
 using namespace std;
 
@@ -55,6 +57,7 @@ public:
     ~SurfelMap();
 
     void image_input(const sensor_msgs::ImageConstPtr &image_input);
+    void rgb_image_input(const sensor_msgs::ImageConstPtr &rgb_image_input);
     void depth_input(const sensor_msgs::ImageConstPtr &image_input);
     void path_input(const nav_msgs::PathConstPtr &loop_path_input);
     void extrinsic_input(const nav_msgs::OdometryConstPtr &ex_input);
@@ -144,7 +147,11 @@ public:
     void warp_active_surfels_cpu_kernel(int thread_i, int thread_num, Eigen::Matrix4f transform_m);
 
     // for fast publish
+    #ifdef USE_RGB
+    PointCloudRGB::Ptr inactive_pointcloud;
+    #else
     PointCloud::Ptr inactive_pointcloud;
+    #endif
     std::vector<int> pointcloud_pose_index;
 
     // ros related

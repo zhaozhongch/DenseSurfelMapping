@@ -19,6 +19,8 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 )
 
+#add_definitions(-DUSE_RGB)
+
 find_package(Boost REQUIRED COMPONENTS system filesystem)
 find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
