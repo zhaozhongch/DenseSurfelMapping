@@ -1,4 +1,21 @@
 # DenseSurfelMapping
+I modify this code to make it can run with realsense rgb. However, due to the realsense limitation, the rgb needs to align to the depth/ir sensor fisrt. The FOV of rgb is smaller than depth/ir sensor, which means after aligning, the rgb image will have a large black area. 
+The following is an example image that rgb is not aligned, we can see the FOV of rgb is smaller.
+<p align="center">
+<img src="fig/rgb_ori.png" alt="rgb_not_aligned" width = "623" height = "300">
+</p>
+The following is an example of image that rgb is aligned, we can see there is a large black area and in the rectangle, some parts are still black because it lacks depth.
+<p align="center">
+<img src="fig/rgb_align.png" alt="rgb_aligned" width = "623" height = "300">
+</p>
+Which makes it is difficult to visualize the rgb point cloud using realsense. I have to only use the image in that rectangle. The parameter in `fuse_realsnese.launch`
+```
+    <param name="cam_width" value="580" />
+    <param name="cam_height" value="330" />
+    <param name="no_rgb_x" value="120" />
+    <param name="no_rgb_y" value="82" />
+```
+`cam_width` and `cam_height` means the image size in that rectangle. `no_rgb_x` and `no_rgb_y` means the upper left pixel position of that rectangle.
 
 **WARNING!**
 
