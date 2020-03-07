@@ -1,15 +1,22 @@
 <launch>
   <node pkg="surfel_fusion" type="surfel_fusion" name="surfel_fusion" clear_params="true" output="screen">
 
-    <!-- camera parameter -->
-    <param name="cam_width" value="640" />
-    <param name="cam_height" value="480" />
+    <!-- camera parameter 640, 480 for original size, 400, 300 for cropped size-->
+    <param name="cam_width" value="580" />
+    <param name="cam_height" value="330" />
+    <param name="no_rgb_x" value="120" />
+    <param name="no_rgb_y" value="82" />
 
     <!--input image info-->
-    <param name="cam_fx" value="385.6269836" />
+    <param name="cam_fx" value="384.1321106" />
+    <param name="cam_cx" value="384.1321106" />
+    <param name="cam_fy" value="317.3896484" />
+    <param name="cam_cy" value="244.9432983" />	
+    <!-- <param name="cam_fx" value="385.6269836" />
     <param name="cam_cx" value="385.6269836" />
     <param name="cam_fy" value="320.0429688" />
-    <param name="cam_cy" value="241.62677" />
+    <param name="cam_cy" value="241.62677" /> -->
+   
 
     <!-- fusion parameter, all in meter -->
     <param name="fuse_far_distence"  value="30.0" />
@@ -23,6 +30,7 @@
     <remap from="~depth" to="/depth" />
    <remap from="~loop_path" to="/vins_estimator/path" />
    <remap from="~extrinsic_pose" to="/vins_estimator/extrinsic" />
+   <remap from="~rgb_image" to="/rgb" />
 
   </node>
 

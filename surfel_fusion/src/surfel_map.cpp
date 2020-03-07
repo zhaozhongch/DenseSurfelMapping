@@ -15,12 +15,15 @@ inactive_pointcloud(new PointCloud)
 {
     // get the parameters
     bool get_all = true;
+    int no_rgb_x, no_rgb_y;
     get_all &= nh.getParam("cam_width", cam_width);
     get_all &= nh.getParam("cam_height", cam_height);
     get_all &= nh.getParam("cam_fx", cam_fx);
     get_all &= nh.getParam("cam_cx", cam_cx);
     get_all &= nh.getParam("cam_fy", cam_fy);
     get_all &= nh.getParam("cam_cy", cam_cy);
+    get_all &= nh.getParam("no_rgb_x", no_rgb_x);
+    get_all &= nh.getParam("no_rgb_y", no_rgb_y);
 
     camera_matrix = Eigen::Matrix3d::Zero();
     camera_matrix(0, 0) = cam_fx;
@@ -55,7 +58,7 @@ inactive_pointcloud(new PointCloud)
     // cudaMalloc(&fuse_param_gpuptr, sizeof(FuseParameters));
     // cudaMemcpy(fuse_param_gpuptr, &fuse_param, sizeof(FuseParameters), cudaMemcpyHostToDevice);
 
-    fusion_functions.initialize(cam_width, cam_height, cam_fx, cam_fy, cam_cx, cam_cy, far_dist, near_dist);
+    fusion_functions.initialize(cam_width, cam_height, cam_fx, cam_fy, cam_cx, cam_cy, far_dist, near_dist, no_rgb_x, no_rgb_y);
 
     // ros publisher
     #ifdef USE_RGB
@@ -109,7 +112,7 @@ void SurfelMap::rgb_image_input(const sensor_msgs::ImageConstPtr &rgb_image_inpu
     cv::Mat image = image_ptr->image;
     ros::Time stamp = image_ptr->header.stamp;
     rgb_image_buffer.push_back(std::make_pair(stamp, image));
-    ROS_INFO("get rgb image and put it into buff...........");
+    //ROS_INFO("get rgb image and put it into buff...........");
     synchronize_msgs();
 }
 
@@ -199,7 +202,7 @@ void SurfelMap::synchronize_msgs()
         depth = depth_buffer[depth_num].second;
         rgb_image = rgb_image_buffer[rgb_image_num].second;
         
-        ROS_INFO("timestamp of three image, %f, %f, %f", image_buffer[image_num].first.toSec(), depth_buffer[depth_num].first.toSec(), rgb_image_buffer[rgb_image_num].first.toSec());
+        //ROS_INFO("timestamp of three image, %f, %f, %f", image_buffer[image_num].first.toSec(), depth_buffer[depth_num].first.toSec(), rgb_image_buffer[rgb_image_num].first.toSec());
         fuse_map(image, depth, rgb_image, fuse_pose_eigen.cast<float>(), relative_index);
         //printf("fuse map done!\n");
 

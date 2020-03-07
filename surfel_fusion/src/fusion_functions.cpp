@@ -7,7 +7,7 @@
 void FusionFunctions::initialize(
     int _width, int _height,
     float _fx, float _fy, float _cx, float _cy,
-    float _fuse_far, float _fuse_near)
+    float _fuse_far, float _fuse_near, int _no_rgb_x, int _no_rgb_y)
 {
     image_width = _width;
     image_height = _height;
@@ -17,6 +17,8 @@ void FusionFunctions::initialize(
     fy = _fy;
     cx = _cx;
     cy = _cy;
+    no_rgb_x = _no_rgb_x;
+    no_rgb_y = _no_rgb_y;
 
     fuse_far = _fuse_far;
     fuse_near = _fuse_near;
@@ -241,14 +243,14 @@ void FusionFunctions::fuse_surfels_kernel(
         project(surfel_p_c(0), surfel_p_c(1), surfel_p_c(2), project_u, project_v);
         int p_u_int = project_u + 0.5;
         int p_v_int = project_v + 0.5;
-        if (p_u_int < 1 || p_u_int > image_width - 2 || p_v_int < 1 || p_v_int > image_height - 2)
+        if (p_u_int < no_rgb_x + 1 || p_u_int > image_width + no_rgb_x - 2 || p_v_int < no_rgb_y + 1 || p_v_int > image_height + no_rgb_y - 2)
             continue;
         if (surfel_p_c(2) < depth.at<float>(p_v_int, p_u_int) - 0.5)
         {
             local_surfels[i].update_times -= 1;
             continue;
         }
-        int sp_index = superpixel_index[p_v_int * image_width + p_u_int];
+        int sp_index = superpixel_index[(p_v_int - no_rgb_y) * image_width + (p_u_int-no_rgb_x)];
         if (superpixel_seeds[sp_index].norm_x == 0 && superpixel_seeds[sp_index].norm_y == 0 && superpixel_seeds[sp_index].norm_z == 0)
             continue;
         if (superpixel_seeds[sp_index].view_cos < MAX_ANGLE_COS)
@@ -412,21 +414,21 @@ void FusionFunctions::update_pixels_kernel(
     int thread_i, int thread_num)
 {
     int step_row = image_height / thread_num;
-    int start_row = step_row * thread_i;
+    int start_row = step_row * thread_i + no_rgb_y;
     int end_row = start_row + step_row;
     if(thread_i == thread_num - 1)
-        end_row = image_height;
+        end_row = image_height + no_rgb_y;
     for(int row_i = start_row; row_i < end_row; row_i++)
-    for(int col_i = 0; col_i < image_width; col_i++)
+    for(int col_i = no_rgb_x; col_i < image_width + no_rgb_x; col_i++)
     {
-        if(superpixel_seeds[superpixel_index[row_i * image_width + col_i]].stable)
+        if(superpixel_seeds[superpixel_index[(row_i - no_rgb_y) * image_width + col_i - no_rgb_x]].stable)
             continue;
         float my_intensity = image.at<uchar>(row_i, col_i);
         float my_inv_depth = 0.0;
         if (depth.at<float>(row_i, col_i) > 0.01)
             my_inv_depth = 1.0 / depth.at<float>(row_i, col_i);
-        int base_sp_x = col_i / SP_SIZE;
-        int base_sp_y = row_i / SP_SIZE;
+        int base_sp_x = (col_i - no_rgb_x) / SP_SIZE;
+        int base_sp_y = (row_i - no_rgb_y)/ SP_SIZE;
         float min_dist_depth = 1e6;
         int min_sp_index_depth = -1;
         float min_dist_nodepth = 1e6;
@@ -437,8 +439,8 @@ void FusionFunctions::update_pixels_kernel(
         {
             int check_sp_x = base_sp_x + check_i;
             int check_sp_y = base_sp_y + check_j;
-            int dist_sp_x = fabs(check_sp_x * SP_SIZE + SP_SIZE/2 - col_i);
-            int dist_sp_y = fabs(check_sp_y * SP_SIZE + SP_SIZE/2 - row_i);
+            int dist_sp_x = fabs(check_sp_x * SP_SIZE + SP_SIZE/2 - (col_i - no_rgb_x));
+            int dist_sp_y = fabs(check_sp_y * SP_SIZE + SP_SIZE/2 - (row_i - no_rgb_y));
             if (dist_sp_x < SP_SIZE && dist_sp_y < SP_SIZE &&
                 check_sp_x >= 0 && check_sp_x < sp_width &&
                 check_sp_y >= 0 && check_sp_y < sp_height)
@@ -463,12 +465,12 @@ void FusionFunctions::update_pixels_kernel(
         }
         if(all_has_depth)
         {
-            superpixel_index[row_i * image_width + col_i] = min_sp_index_depth;
+            superpixel_index[(row_i - no_rgb_y) * image_width + (col_i-no_rgb_x)] = min_sp_index_depth;
             superpixel_seeds[min_sp_index_depth].stable = false;
         }
         else
         {
-            superpixel_index[row_i * image_width + col_i] = min_sp_index_nodepth;
+            superpixel_index[(row_i - no_rgb_y) * image_width + (col_i-no_rgb_x)] = min_sp_index_nodepth;
             superpixel_seeds[min_sp_index_nodepth].stable = false;
         }
     }
@@ -562,6 +564,7 @@ void FusionFunctions::update_seeds_kernel(
     int thread_i, int thread_num)
 {
     int step = superpixel_seeds.size() / thread_num;
+    //std::cout<<"seeds size "<<superpixel_seeds.size()<<std::endl;
     int begin_index = step * thread_i;
     int end_index = begin_index + step;
     if(thread_i == thread_num - 1)
@@ -572,14 +575,14 @@ void FusionFunctions::update_seeds_kernel(
             continue;
         int sp_x = seed_i % sp_width;
         int sp_y = seed_i / sp_width;
-        int check_x_begin = sp_x * SP_SIZE + SP_SIZE / 2 - SP_SIZE;
-        int check_y_begin = sp_y * SP_SIZE + SP_SIZE / 2 - SP_SIZE;
+        int check_x_begin = sp_x * SP_SIZE + SP_SIZE / 2 - SP_SIZE + no_rgb_x;
+        int check_y_begin = sp_y * SP_SIZE + SP_SIZE / 2 - SP_SIZE + no_rgb_y;
         int check_x_end = check_x_begin + SP_SIZE * 2;
         int check_y_end = check_y_begin + SP_SIZE * 2;
-        check_x_begin = check_x_begin > 0 ? check_x_begin : 0;
-        check_y_begin = check_y_begin > 0 ? check_y_begin : 0;
-        check_x_end = check_x_end < image_width - 1 ? check_x_end : image_width - 1;
-        check_y_end = check_y_end < image_height - 1 ? check_y_end : image_height - 1;
+        check_x_begin = check_x_begin > no_rgb_x ? check_x_begin : no_rgb_x;
+        check_y_begin = check_y_begin > no_rgb_y ? check_y_begin : no_rgb_y;
+        check_x_end = check_x_end < image_width + no_rgb_x - 1 ? check_x_end : image_width + no_rgb_x - 1;
+        check_y_end = check_y_end < image_height + no_rgb_y - 1 ? check_y_end : image_height + no_rgb_y - 1;
         float sum_x = 0;
         float sum_y = 0;
         #ifdef USE_RGB
@@ -623,11 +626,12 @@ void FusionFunctions::update_seeds_kernel(
         if (sum_intensity_num == 0)
             return;
         #ifdef USE_RGB
-        if(sum_rgb_num == 0)
-            ROS_ERROR("error !! no depth is bigger than 0.01 in the seeds");
-        sum_b /= sum_rgb_num;
-        sum_g /= sum_rgb_num;
-        sum_r /= sum_rgb_num;
+        if(sum_rgb_num != 0){
+            sum_b /= sum_rgb_num;
+            sum_g /= sum_rgb_num;
+            sum_r /= sum_rgb_num;
+            ROS_INFO("superpixel seeds for rgb is 0");            
+        }
         float pre_b = superpixel_seeds[seed_i].mean_b;
         float pre_r = superpixel_seeds[seed_i].mean_r;
         float pre_g = superpixel_seeds[seed_i].mean_g;
@@ -718,14 +722,15 @@ void FusionFunctions::initialize_seeds_kernel(
     int end_index = begin_index + step;
     if (thread_i == thread_num - 1)
         end_index = superpixel_seeds.size();
+    int counter = 0;
     for (int seed_i = begin_index; seed_i < end_index; seed_i++)
     {
         int sp_x = seed_i % sp_width;
         int sp_y = seed_i / sp_width;
-        int image_x = sp_x * SP_SIZE + SP_SIZE / 2;
-        int image_y = sp_y * SP_SIZE + SP_SIZE / 2;
-        image_x = image_x < (image_width - 1) ? image_x : (image_width - 1);
-        image_y = image_y < (image_height - 1) ? image_y : (image_height - 1);
+        int image_x = sp_x * SP_SIZE + SP_SIZE / 2 + no_rgb_x;
+        int image_y = sp_y * SP_SIZE + SP_SIZE / 2 + no_rgb_y;
+        image_x = image_x < (image_width + no_rgb_x - 1) ? image_x : (image_width + no_rgb_x - 1);
+        image_y = image_y < (image_height + no_rgb_y - 1) ? image_y : (image_height + no_rgb_y - 1);
         Superpixel_seed this_sp;
         this_sp.x = image_x;
         this_sp.y = image_y;
@@ -734,47 +739,58 @@ void FusionFunctions::initialize_seeds_kernel(
         this_sp.stable = false;
         this_sp.mean_depth = depth.at<float>(image_y, image_x);
         #ifdef USE_RGB
-        if(this_sp.mean_depth > 0.01){
+        if(this_sp.mean_depth >= 0.01){
             this_sp.mean_b = rgb_image.ptr<uchar>(image_y)[image_x*3 + 0];
             this_sp.mean_g = rgb_image.ptr<uchar>(image_y)[image_x*3 + 1];
             this_sp.mean_r = rgb_image.ptr<uchar>(image_y)[image_x*3 + 2];
-        }
-        else{
-            this_sp.mean_b = 0;
-            this_sp.mean_g = 0;
-            this_sp.mean_r = 0;
+            counter++;
         }
         #endif
         
         if(this_sp.mean_depth < 0.01)
         {
-            int check_x_begin = sp_x * SP_SIZE + SP_SIZE / 2 - SP_SIZE;
-            int check_y_begin = sp_y * SP_SIZE + SP_SIZE / 2 - SP_SIZE;
-            int check_x_end = check_x_begin + SP_SIZE * 2;
-            int check_y_end = check_y_begin + SP_SIZE * 2;
-            check_x_begin = check_x_begin > 0 ? check_x_begin : 0;
-            check_y_begin = check_y_begin > 0 ? check_y_begin : 0;
-            check_x_end = check_x_end < image_width - 1 ? check_x_end : image_width - 1;
-            check_y_end = check_y_end < image_height - 1 ? check_y_end : image_height - 1;
+            int check_x_begin = sp_x * SP_SIZE + SP_SIZE / 2 - SP_SIZE + no_rgb_x;
+            int check_y_begin = sp_y * SP_SIZE + SP_SIZE / 2 - SP_SIZE + no_rgb_y;
+            int check_x_end = check_x_begin + SP_SIZE * 2 + no_rgb_x;
+            int check_y_end = check_y_begin + SP_SIZE * 2 + no_rgb_y;
+            check_x_begin = check_x_begin > no_rgb_x ? check_x_begin : no_rgb_x;
+            check_y_begin = check_y_begin > no_rgb_y ? check_y_begin : no_rgb_y;
+            check_x_end = check_x_end < image_width + no_rgb_x - 1 ? check_x_end : image_width + no_rgb_x - 1;
+            check_y_end = check_y_end < image_height+ no_rgb_y - 1 ? check_y_end : image_height+ no_rgb_y - 1;
             bool find_depth = false;
             for (int check_j = check_y_begin; check_j < check_y_end; check_j++)
             {
                 for (int check_i = check_x_begin; check_i < check_x_end; check_i ++)
                 {
                     float this_depth = depth.at<float>(check_j, check_i);
-                    if(this_depth > 0.01)
+                    if(this_depth >= 0.01)
                     {
                         this_sp.mean_depth = this_depth;
+                        #ifdef USE_RGB
+                        this_sp.mean_b = rgb_image.ptr<uchar>(check_j)[check_i*3 + 0];
+                        this_sp.mean_g = rgb_image.ptr<uchar>(check_j)[check_i*3 + 1];
+                        this_sp.mean_r = rgb_image.ptr<uchar>(check_j)[check_i*3 + 2];
+                        #endif
                         find_depth = true;
+                        counter++;
                         break;
                     }
                 }
                 if(find_depth)
                     break;
             }
+            #ifdef USE_RGB
+            if(!find_depth){
+                this_sp.mean_b = 0;
+                this_sp.mean_g = 0;
+                this_sp.mean_r = 0;
+            }
+            #endif
         }
         superpixel_seeds[seed_i] = this_sp;
     }
+    //if(thread_i == 1 || thread_i == 4 || thread_i == 8)
+    //ROS_INFO("in thread_i %d , step %d, we have %d valid depth", thread_i, step, counter);
 }
 
 void FusionFunctions::initialize_seeds()
@@ -793,14 +809,14 @@ void FusionFunctions::initialize_seeds()
 void FusionFunctions::calculate_spaces_kernel(int thread_i, int thread_num)
 {
     int step_row = image_height / thread_num;
-    int start_row = step_row * thread_i;
+    int start_row = step_row * thread_i + no_rgb_y;
     int end_row = start_row + step_row;
     if(thread_i == thread_num - 1)
         end_row = image_height;
     for(int row_i = start_row; row_i < end_row; row_i++)
-    for(int col_i = 0; col_i < image_width; col_i++)
+    for(int col_i = no_rgb_x; col_i < image_width + no_rgb_x; col_i++)
     {
-        int my_index = row_i * image_width + col_i;
+        int my_index = (row_i - no_rgb_y) * image_width + (col_i - no_rgb_x);
         float my_depth = depth.at<float>(row_i, col_i);
         double x,y,z;
         back_project(col_i, row_i, my_depth, x,y,z);
@@ -813,15 +829,15 @@ void FusionFunctions::calculate_spaces_kernel(int thread_i, int thread_num)
 void FusionFunctions::calculate_pixels_norms_kernel(int thread_i, int thread_num)
 {
     int step_row = image_height / thread_num;
-    int start_row = step_row * thread_i;
-    start_row = start_row > 1 ? start_row : 1;
+    int start_row = step_row * thread_i + no_rgb_y;
+    start_row = start_row > (no_rgb_y+1) ? start_row : (no_rgb_y+1);
     int end_row = start_row + step_row;
     if(thread_i == thread_num - 1)
-        end_row = image_height - 1;
+        end_row = image_height + no_rgb_y - 1;
     for(int row_i = start_row; row_i < end_row; row_i++)
-    for(int col_i = 1; col_i < image_width - 1; col_i++)
+    for(int col_i = no_rgb_x; col_i < image_width + no_rgb_x - 1; col_i++)
     {
-        int my_index = row_i * image_width + col_i;
+        int my_index = (row_i - no_rgb_y) * image_width + (col_i - no_rgb_x);
         float my_x, my_y, my_z;
         my_x = space_map[my_index * 3];
         my_y = space_map[my_index * 3 + 1];
@@ -994,8 +1010,8 @@ void FusionFunctions::calculate_sp_norms_kernel(int thread_i, int thread_num)
     {
         int sp_x = seed_i % sp_width;
         int sp_y = seed_i / sp_width;
-        int check_x_begin = sp_x * SP_SIZE + SP_SIZE / 2 - SP_SIZE;
-        int check_y_begin = sp_y * SP_SIZE + SP_SIZE / 2 - SP_SIZE;
+        int check_x_begin = sp_x * SP_SIZE + SP_SIZE / 2 - SP_SIZE + no_rgb_x;
+        int check_y_begin = sp_y * SP_SIZE + SP_SIZE / 2 - SP_SIZE + no_rgb_y;
         double avg_x, avg_y, avg_z;
         back_project(
             superpixel_seeds[seed_i].x, superpixel_seeds[seed_i].y, superpixel_seeds[seed_i].mean_depth,
@@ -1010,7 +1026,7 @@ void FusionFunctions::calculate_sp_norms_kernel(int thread_i, int thread_num)
         {
             for (int check_i = check_x_begin; check_i < (check_x_begin + SP_SIZE * 2); check_i++)
             {
-                int pixel_index = check_j * image_width + check_i;
+                int pixel_index = (check_j - no_rgb_y) * image_width + (check_i - no_rgb_x);
                 if (pixel_index < 0 || pixel_index >= superpixel_index.size())
                     continue;
                 if (superpixel_index[pixel_index] == seed_i)
@@ -1213,12 +1229,14 @@ void FusionFunctions::calculate_sp_depth_norms_kernel(int thread_i, int thread_n
     int end_index = begin_index + step;
     if (thread_i == thread_num - 1)
         end_index = superpixel_seeds.size();
+    // if(thread_i == 1)
+    //     std::cout<<"superpixel size and step is "<<superpixel_seeds.size()<<","<<step<<std::endl;
     for (int seed_i = begin_index; seed_i < end_index; seed_i++)
     {
         int sp_x = seed_i % sp_width;
         int sp_y = seed_i / sp_width;
-        int check_x_begin = sp_x * SP_SIZE + SP_SIZE / 2 - SP_SIZE;
-        int check_y_begin = sp_y * SP_SIZE + SP_SIZE / 2 - SP_SIZE;
+        int check_x_begin = sp_x * SP_SIZE + SP_SIZE / 2 - SP_SIZE + no_rgb_x;
+        int check_y_begin = sp_y * SP_SIZE + SP_SIZE / 2 - SP_SIZE + no_rgb_y;
         std::vector<float> pixel_depth;
         std::vector<float> pixel_norms;
         std::vector<float> pixel_positions;
@@ -1229,7 +1247,7 @@ void FusionFunctions::calculate_sp_depth_norms_kernel(int thread_i, int thread_n
         {
             for (int check_i = check_x_begin; check_i < (check_x_begin + SP_SIZE * 2); check_i++)
             {
-                int pixel_index = check_j * image_width + check_i;
+                int pixel_index = (check_j - no_rgb_y) * image_width + (check_i - no_rgb_x);
                 if (pixel_index < 0 || pixel_index >= superpixel_index.size())
                     continue;
                 if (superpixel_index[pixel_index] == seed_i)
@@ -1240,7 +1258,7 @@ void FusionFunctions::calculate_sp_depth_norms_kernel(int thread_i, int thread_n
                     if (dist > max_dist)
                         max_dist = dist;
 
-                    float my_depth = depth.at<float>(check_j, check_i);
+                    float my_depth = depth.at<float>(check_j , check_i );
                     if (my_depth > 0.05)
                     {
                         pixel_depth.push_back(my_depth);

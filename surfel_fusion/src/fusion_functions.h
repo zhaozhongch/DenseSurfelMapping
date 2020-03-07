@@ -8,7 +8,7 @@
 #define ITERATION_NUM 3
 #define GN_ITERATION_NUM 0
 #define THREAD_NUM 10
-#define SP_SIZE 8
+#define SP_SIZE 6 //original 8
 #define MAX_ANGLE_COS 0.1
 // for drive
 // #define HUBER_RANGE 0.5
@@ -82,11 +82,21 @@ private:
     // for debug
     void debug_show();
 
+    //no rgb part
+    int no_rgb_x = 0;
+    int no_rgb_y = 0;
+    //int no_rgb_x = 120;
+    //int no_rgb_y = 82; for 848 480 image
+    // int no_rgb_x = 110; for 640 480 image
+    // int no_rgb_y = 95;
+    //int rgb_width = 400;
+    //int rgb_height = 300;
+
 public:
     void initialize(
         int _width, int _height,
         float _fx, float _fy, float _cx, float _cy,
-        float _fuse_far, float _fuse_near);
+        float _fuse_far, float _fuse_near, int _no_rgb_x, int _no_rgb_y);
     void fuse_initialize_map(
         int reference_frame_index,
         cv::Mat &input_image,
