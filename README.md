@@ -8,13 +8,7 @@ The following is an example of image that rgb is aligned, we can see there is a 
 <p align="center">
 <img src="fig/rgb_align.png" alt="rgb_aligned" width = "623" height = "300">
 </p>
-Which makes it is difficult to visualize the rgb point cloud using realsense. I have to only use the image in that rectangle. The parameter in ```fuse_realsnese.launch```.<br>
-```
-    <param name="cam_width" value="580" />
-    <param name="cam_height" value="330" />
-    <param name="no_rgb_x" value="120" />
-    <param name="no_rgb_y" value="82" />
-```
+Which makes it is difficult to visualize the rgb point cloud using realsense. I have to only use the image in that rectangle. The parameter in             ```fuse_realsnese.launch```.<br>
 `cam_width` and `cam_height` means the image size in that rectangle. `no_rgb_x` and `no_rgb_y` means the upper left pixel position of that rectangle.
 
 **WARNING!**
