@@ -2,10 +2,10 @@
 <p align="center">
 <img src="fig/eth_desk.png" alt="mapping example" width = "623" height = "300">
 </p>
-Just for test use. The offical code has added [RGB-supprot](https://github.com/HKUST-Aerial-Robotics/DenseSurfelMapping/tree/VINS-supported) now 
-Currently cannot use tum RGBD-dataset to test because TUM-RGBD dataset doesn't contain IMU information, which is needed by VIN-FUSION or VINS-Mono.
-Also, cannot support realsense2 because the realsense's rgb aligment with depth doesn't share the same field of view, which makes the dense reconstruction looks not so good.
 
+Just for test use. The offical code has added [rgbd support]((https://github.com/HKUST-Aerial-Robotics/DenseSurfelMapping/tree/VINS-supported)).  
+Currently cannot use tum RGBD-dataset to test because TUM-RGBD dataset doesn't contain IMU information, which is needed by VIN-FUSION or VINS-Mono.
+Also, cannot support realsense2 because the realsense's rgb aligment with depth doesn't share the same field of view, which makes the dense reconstruction looks not so good.  
 Use dataset [ETH-3D](https://www.eth3d.net/slam_documentation) to test. Their dataset contains stereo rgbd image as well as IMU information. However, they don't have rosbags so I write a ros package that can convert their dataset to rosbag [eht_2_rosbag](https://github.com/zhaozhongch/eth_2_rosbag).
 
 # Install and Use
