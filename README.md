@@ -3,9 +3,10 @@
 <img src="fig/eth_desk.png" alt="mapping example" width = "623" height = "300">
 </p>
 
-Just for test use. The offical code has added [rgbd support]((https://github.com/HKUST-Aerial-Robotics/DenseSurfelMapping/tree/VINS-supported)).  
-Currently cannot use tum RGBD-dataset to test because TUM-RGBD dataset doesn't contain IMU information, which is needed by VIN-FUSION or VINS-Mono.
+The offical code has added [rgbd support]((https://github.com/HKUST-Aerial-Robotics/DenseSurfelMapping/tree/VINS-supported)) but the visualization result is different from this one.    
+This package Currently cannot use tum RGBD-dataset to test because TUM-RGBD dataset doesn't contain IMU information, which is needed by VIN-FUSION or VINS-Mono.  
 Also, cannot support realsense2 because the realsense's rgb aligment with depth doesn't share the same field of view, which makes the dense reconstruction looks not so good.  
+It is for a dataset that has rgbd image as well as IMU data  .
 Use dataset [ETH-3D](https://www.eth3d.net/slam_documentation) to test. Their dataset contains stereo rgbd image as well as IMU information. However, they don't have rosbags so I write a ros package that can convert their dataset to rosbag [eht_2_rosbag](https://github.com/zhaozhongch/eth_2_rosbag).
 
 # Install and Use
@@ -18,7 +19,7 @@ catkin_make
 Assume you have installed [eht_2_rosbag](https://github.com/zhaozhongch/eth_2_rosbag) pakcage and [VINS-FUSION](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion). To run
 In one terminal, cd to vins workspace,
 ```
-rosrun vins vins_node path_to_eth_config_yaml_file
+rosrun vins vins_node path_to_eth_mono_imu_config_yaml_file
 ```
 I provide the `eth_config_yaml_file` in [eht_2_rosbag](https://github.com/zhaozhongch/eth_2_rosbag). In another terminal, cd to `catkin_ws` or other workspace where you put the densesurfel fusion package 
 ```
