@@ -3,7 +3,7 @@
 <img src="fig/eth_desk.png" alt="mapping example" width = "623" height = "300">
 </p>
 
-The original author code has added [rgbd support](https://github.com/HKUST-Aerial-Robotics/DenseSurfelMapping/tree/VINS-supported) but the visualization result is different from this one.    
+The original author code has added [rgbd support](https://github.com/HKUST-Aerial-Robotics/DenseSurfelMapping/tree/VINS-supported) but the visualization result is different from this one. The original code uses mesh but this one still uses point cloud to display.    
 This package Currently cannot use tum RGBD-dataset to test because TUM-RGBD dataset doesn't contain IMU information, which is needed by VIN-FUSION or VINS-Mono.  
 Also, cannot support realsense2 because the realsense's rgb aligment with depth doesn't share the same field of view, which makes the dense reconstruction looks not so good. The original suthor's code can support realsense2 rgbd.    
 It is for a dataset that has rgbd image as well as IMU data.  
