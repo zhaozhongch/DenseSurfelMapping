@@ -6,10 +6,11 @@
 The offical code has added [rgbd support]((https://github.com/HKUST-Aerial-Robotics/DenseSurfelMapping/tree/VINS-supported)) but the visualization result is different from this one.    
 This package Currently cannot use tum RGBD-dataset to test because TUM-RGBD dataset doesn't contain IMU information, which is needed by VIN-FUSION or VINS-Mono.  
 Also, cannot support realsense2 because the realsense's rgb aligment with depth doesn't share the same field of view, which makes the dense reconstruction looks not so good.  
-It is for a dataset that has rgbd image as well as IMU data  .
+It is for a dataset that has rgbd image as well as IMU data.  
 Use dataset [ETH-3D](https://www.eth3d.net/slam_documentation) to test. Their dataset contains stereo rgbd image as well as IMU information. However, they don't have rosbags so I write a ros package that can convert their dataset to rosbag [eht_2_rosbag](https://github.com/zhaozhongch/eth_2_rosbag).
 
 # Install and Use
+Use `VINS-Supproted` branch please.  
 ```
 cd catkin_ws/src
 git clone https://github.com/zhaozhongch/DenseSurfelMapping.git
