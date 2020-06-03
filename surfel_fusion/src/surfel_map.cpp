@@ -126,7 +126,7 @@ void SurfelMap::depth_input(const sensor_msgs::ImageConstPtr &depth_input)
     {
         cv_bridge::CvImagePtr image_ptr;
         image_ptr = cv_bridge::toCvCopy(depth_input, depth_input->encoding);
-        constexpr double kDepthScalingFactor = 0.001;//0.0002 for eth, 0.001 for realsense
+        constexpr double kDepthScalingFactor = 0.0002;//0.0002 for eth/tum, 0.001 for realsense
         if(depth_input->encoding == sensor_msgs::image_encodings::TYPE_16UC1)
             (image_ptr->image).convertTo(image_ptr->image, CV_32FC1, kDepthScalingFactor);
         // image_ptr = cv_bridge::toCvCopy(depth_input, sensor_msgs::image_encodings::TYPE_32FC1);
